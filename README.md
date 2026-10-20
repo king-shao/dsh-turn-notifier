@@ -22,7 +22,7 @@ DeepSeek Harness 宿主插件：**每轮对话正常完成时**弹一条通知�
 | 通道 | 何时用 | 效果 |
 |---|---|---|
 | `client` | Web 页面还开着（默认，靠页面 2s 轮询心跳判定） | 由页面内的 `Notification` 弹出，**显示为 DeepSeek Harness 本身**，自带应用图标，无需任何系统授权 |
-| `native` | 页面没在跑 | macOS 优先 `terminal-notifier`（标题/副标题/正文/缩略图/点击激活），失败退回 `osascript`；Linux 用 `notify-send` |
+| `native` | 页面没在跑 | macOS 优先 `terminal-notifier`（标题/副标题/正文/缩略图/点击激活），失败退回 `osascript`；Linux 用 `notify-send`；Windows 用 PowerShell WinRT toast |
 
 宿主插件在每轮完成时把 `{会话名, 完成 · 耗时, 摘要}` 写进内存，
 页面脚本通过 `GET /dsh-turn-notifier/last.json?after=<seq>` 取新事件
@@ -85,7 +85,7 @@ npm publish       # 需要先把 package.json 的 name 改成你拥有的名字/
 | `sound` | `Glass` | 原生通道提示音；`false` 静音 |
 | `contentImage` | `auto` | 原生通道缩略图（DSH 图标）/ 绝对路径 / `false` |
 | `activate` | `com.deepseek.dsh` | 点击原生通知激活的应用 |
-| `backend` | `auto` | `terminal-notifier` / `osascript` / `auto` |
+| `backend` | `auto` | `terminal-notifier` / `osascript` / `auto`；Windows、Linux 按平台固定（powershell / notify-send） |
 | `logFile` | `~/.dsh/turn-notifier.log` | 每次投递记一行 JSON；`''` 关闭 |
 
 ## 验证
@@ -109,5 +109,8 @@ dsh plugin --profile desktop remove dsh-turn-notifier
 - 原生通道（页面没开时）依赖 `terminal-notifier` 的通知权限；本机该权限目前是关闭的，
   表现为通知不显示（插件会自动退回 `osascript`，但 Script Editor 的通知权限同样未登记）。
   需要时到「系统设置 → 通知」放行对应工具。日常开着页面用 `client` 通道不受影响。
-- Windows 原生通道暂不支持（静默跳过）。
+- Windows 原生通道借用 Windows PowerShell 的 AUMID 发 toast，所以通知中心里显示的
+  应用名是「Windows PowerShell」而不是 DeepSeek Harness；需要 Windows 10/11 且系统里有
+  `powershell.exe`（没有时尝试 `pwsh.exe`）。页面开着时走 `client` 通道，显示的就是应用本身。
+- Windows 上不支持自定义提示音名称，`sound: false` 会转为静音 toast，其余值用系统默认提示音。
 - 页面轮询间隔 2s，通知最多延迟约 2s。
