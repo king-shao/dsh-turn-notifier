@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Turn notifier",
+    "description": "Shows a notification when a turn finishes: the session title plus a summary of the reply. Click to focus the window."
+  }
+}

@@ -1,0 +1,25 @@
+# dsh-turn-notifier 的挂载声明：DSH 启动时把这条 insert 合入 profile 的配置树。
+- insert:
+    - id: dsh-turn-notifier
+      name: dsh-turn-notifier
+      config:
+        # 会话没有标题时用作通知标题
+        title: DeepSeek Harness
+        # 摘要长度（字符），按句末标点收尾
+        summaryChars: 180
+        # 跳过子代理（subagent）会话，避免一次提问弹一堆通知
+        skipSubagents: true
+        # 只提醒耗时超过 N 秒的轮次（0 = 每轮都提醒）
+        minSeconds: 0
+        # 页面在线时用页面内的应用通知（DeepSeek Harness 身份 + 图标），不重复发原生通知
+        preferClient: true
+        # 原生通知兜底：macOS 提示音；设为 false 静音
+        sound: Glass
+        # 原生通知里附带的缩略图：'auto' 用 DSH 应用图标，也可填绝对路径，false 关闭
+        contentImage: auto
+        # 点击原生通知时激活的应用 bundle id；false 表示不激活
+        activate: com.deepseek.dsh
+        # 原生通知后端：auto 优先 terminal-notifier、没有就用 osascript
+        backend: auto
+        # 诊断日志：每次投递记一行 JSON；留空 '' 关闭
+        logFile: ~/.dsh/turn-notifier.log
