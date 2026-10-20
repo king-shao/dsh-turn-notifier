@@ -1,6 +1,6 @@
 {
   "name": "dsh-turn-notifier",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "description": "DeepSeek Harness 插件：每轮对话完成时弹出系统通知，标题为会话名、正文为本轮回答的摘要",
   "keywords": [
     "dsh",
@@ -21,6 +21,7 @@
   "icon": "./icon.svg",
   "files": [
     "lib",
+    "assets/whale.png",
     "locale/*.json",
     "icon.svg",
     "cordis.patch.yml",

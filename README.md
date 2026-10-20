@@ -21,8 +21,11 @@ DeepSeek Harness 宿主插件：**每轮对话正常完成时**弹一条通知�
 
 | 通道 | 何时用 | 效果 |
 |---|---|---|
-| `client` | Web 页面还开着（默认，靠页面 2s 轮询心跳判定） | 由页面内的 `Notification` 弹出，**显示为 DeepSeek Harness 本身**，自带应用图标，无需任何系统授权 |
-| `native` | 页面没在跑 | macOS 优先 `terminal-notifier`（标题/副标题/正文/缩略图/点击激活），失败退回 `osascript`；Linux 用 `notify-send`；Windows 用 PowerShell WinRT toast |
+| `client` | Web 页面还开着（默认，靠页面 2s 轮询心跳判定） | 由页面内的 `Notification` 弹出，**显示为 DeepSeek Harness 本身**，图标是包内鲸鱼图，无需任何系统授权 |
+| `native` | 页面没在跑 | macOS 优先 `terminal-notifier`（标题/副标题/正文/鲸鱼缩略图/点击激活），失败退回 `osascript`；Linux 用 `notify-send -i`；Windows 用 PowerShell WinRT toast（`appLogoOverride` 鲸鱼图标） |
+
+通知图标统一取自包内的 `assets/whale.png`（随插件分发，不需要各平台另找素材）；
+`client` 通道通过 `/dsh-turn-notifier/icon.png` 路由取图。
 
 宿主插件在每轮完成时把 `{会话名, 完成 · 耗时, 摘要}` 写进内存，
 页面脚本通过 `GET /dsh-turn-notifier/last.json?after=<seq>` 取新事件
@@ -62,11 +65,11 @@ dsh plugin --profile <profile> add dsh-turn-notifier
 ## 打包与发布
 
 ```sh
-npm pack          # 产出 dsh-turn-notifier-<version>.tgz（约 11 kB，8 个文件）
+npm pack          # 产出 dsh-turn-notifier-<version>.tgz
 npm publish       # 需要先把 package.json 的 name 改成你拥有的名字/scope
 ```
 
-包内含：`lib/index.js`（宿主插件）、`cordis.patch.yml`（挂载声明）、
+包内含：`lib/index.js`（宿主插件）、`assets/whale.png`（通知图标）、`cordis.patch.yml`（挂载声明）、
 `icon.svg`（插件管理器图标）、`locale/{zh,en}.json`（`meta.title` / `meta.description`）、
 `README.md`、`LICENSE`。`package.json` 的 `exports` 暴露了 `.`、`./locale/*.json`、`./icon`，
 `dsh.bundle.patch` 指向 patch 文件。
@@ -83,7 +86,7 @@ npm publish       # 需要先把 package.json 的 name 改成你拥有的名字/
 | `minSeconds` | `0` | 只提醒耗时 ≥ N 秒的轮次 |
 | `preferClient` | `true` | 页面在线时用页面内通知，避免与原生通知重复 |
 | `sound` | `Glass` | 原生通道提示音；`false` 静音 |
-| `contentImage` | `auto` | 原生通道缩略图（DSH 图标）/ 绝对路径 / `false` |
+| `icon` | `auto` | 通知图标：`auto` 用包内鲸鱼图，也可填绝对路径，`false` 关闭（旧名 `contentImage` 仍可用） |
 | `activate` | `com.deepseek.dsh` | 点击原生通知激活的应用 |
 | `backend` | `auto` | `terminal-notifier` / `osascript` / `auto`；Windows、Linux 按平台固定（powershell / notify-send） |
 | `logFile` | `~/.dsh/turn-notifier.log` | 每次投递记一行 JSON；`''` 关闭 |
@@ -103,6 +106,20 @@ dsh plugin --profile desktop remove dsh-turn-notifier
 
 再从 `~/.dsh/profiles/desktop/package.json` 的 `dsh.profile.bundles` 删掉
 `dsh-turn-notifier`，重启应用。
+
+## 平台支持
+
+插件本身是纯 JS，`dsh plugin add` 在任何平台都一样安装，不需要编译或额外运行时；
+通知走哪条通道由运行环境自动选择：
+
+| 平台 | 页面开着（client） | 页面关闭（native） | 图标 |
+|---|---|---|---|
+| macOS | 应用自己的通知 | `terminal-notifier`（装了才有）→ `osascript` | 前两者带鲸鱼图，`osascript` 无图标 |
+| Windows 10/11 | 应用自己的 toast | PowerShell WinRT toast | `appLogoOverride` 鲸鱼图标 |
+| Linux | 应用自己的通知 | `notify-send` | `-i` 鲸鱼图标 |
+
+`terminal-notifier` 是 macOS 上的**可选**增强（更好的排版、点击激活、图标）；
+没装也能工作，只是退回 `osascript` 的朴素横幅。
 
 ## 限制
 
