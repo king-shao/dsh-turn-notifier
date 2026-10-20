@@ -38,19 +38,23 @@ DeepSeek Harness 宿主插件：**每轮对话正常完成时**弹一条通知�
 
 ## 安装
 
-三种方式，选一种即可（`dsh plugin` 会把依赖写进 profile 的 `package.json`，
+任选一种（`dsh plugin` 会把依赖写进 profile 的 `package.json`，
 并自动把 `dsh-turn-notifier` 加进 `dsh.profile.bundles`；插件自己的
-`cordis.patch.yml` 负责插入 Loader 条目）：
+`cordis.patch.yml` 负责插入 Loader 条目）。`<profile>` 换成你的 profile 名，
+桌面应用一般是 `desktop`，命令行 web 一般是 `web`：
 
 ```sh
-# ① 本地开发：直接链接源码目录（本机当前用这个）
-dsh plugin --profile desktop add "link:/Users/kingshao/Documents/deepseek-harness/default-workspace/dsh-turn-notifier"
+# ① 从 GitHub Release 直接装（推荐）
+dsh plugin --profile <profile> add "https://github.com/king-shao/dsh-turn-notifier/releases/latest/download/dsh-turn-notifier.tgz"
 
-# ② 安装打包好的 tgz
-dsh plugin --profile desktop add "/path/to/dsh-turn-notifier-1.0.0.tgz"
+# ② 本地开发：链接源码目录
+dsh plugin --profile <profile> add "link:/path/to/dsh-turn-notifier"
 
-# ③ 发布到 npm 后按包名安装
-dsh plugin --profile desktop add dsh-turn-notifier
+# ③ 本地打包好的 tgz
+dsh plugin --profile <profile> add "/path/to/dsh-turn-notifier-1.0.0.tgz"
+
+# ④ 已发布到 npm 时按包名安装
+dsh plugin --profile <profile> add dsh-turn-notifier
 ```
 
 **改动需要重启 DeepSeek Harness**（desktop profile 下 HMR 关闭）；注入行与路由都在启动时注册。
