@@ -110,7 +110,8 @@ dsh plugin --profile desktop remove dsh-turn-notifier
 ## 平台支持
 
 插件本身是纯 JS，`dsh plugin add` 在任何平台都一样安装，不需要编译或额外运行时；
-通知走哪条通道由运行环境自动选择：
+通知走哪条通道由运行环境自动选择。桌面应用和 `dsh web`（浏览器）都支持页面内通知，
+浏览器首次会弹一次通知授权：
 
 | 平台 | 页面开着（client） | 页面关闭（native） | 图标 |
 |---|---|---|---|
