@@ -1,134 +1,121 @@
 # dsh-turn-notifier
 
-DeepSeek Harness 宿主插件：**每轮对话正常完成时**弹一条通知，标题是会话名，正文是本轮回答的摘要。
-用于「切出去干别的，答完叫我」。
+DeepSeek Harness 宿主插件。每轮对话正常结束时发送一条系统通知，标题为会话名称，正文为本轮回答的摘要，用于在对话执行期间处理其他事务时获知完成状态。
 
-## 通知长什么样
+## 通知内容
 
-```
-┌──────────────────────────────────────────┐
-│ DeepSeek Harness                         │  ← 应用身份（Electron 原生）
-│ 给通知加摘要                              │  ← 会话标题
-│ 完成 · 12s                               │
-│ 已改造完成。现在通知分两行：标题是会话名，  │  ← 摘要（去 markdown、按句收尾）
-│ 正文是摘要……                             │
-└──────────────────────────────────────────┘
-```
+| 字段 | 取值 |
+|---|---|
+| 标题 | 会话名称；会话尚无标题时使用配置项 `title` |
+| 副标题 | `完成 · <耗时>` |
+| 正文 | 本轮回答的摘要 |
+| 图标 | 包内 `assets/whale.png` |
 
-点击通知会唤起窗口。
+点击通知可激活应用窗口。
 
-## 两条通道
+## 投递通道
 
-| 通道 | 何时用 | 效果 |
+插件按运行环境自动选择通道，两者不会同时投递。
+
+| 通道 | 触发条件 | 说明 |
 |---|---|---|
-| `client` | Web 页面还开着（默认，靠页面 2s 轮询心跳判定） | 由页面内的 `Notification` 弹出，**显示为 DeepSeek Harness 本身**，图标是包内鲸鱼图，无需任何系统授权 |
-| `native` | 页面没在跑 | macOS 优先 `terminal-notifier`（标题/副标题/正文/鲸鱼缩略图/点击激活），失败退回 `osascript`；Linux 用 `notify-send -i`；Windows 用 PowerShell WinRT toast（`appLogoOverride` 鲸鱼图标） |
+| `client` | 页面处于运行状态 | 由页面内的 `Notification` 接口投递，以 DeepSeek Harness 自身身份显示，不需要额外的系统授权 |
+| `native` | 页面未运行 | macOS 优先使用 `terminal-notifier`，不可用时回退 `osascript`；Linux 使用 `notify-send`；Windows 使用 PowerShell 的 WinRT toast |
 
-通知图标统一取自包内的 `assets/whale.png`（随插件分发，不需要各平台另找素材）；
-`client` 通道通过 `/dsh-turn-notifier/icon.png` 路由取图。
+页面以 2 秒间隔轮询宿主，轮询请求同时作为页面在线的心跳。宿主在每轮完成时将 `{会话名称, 耗时, 摘要}` 记录于内存，页面通过 `GET /dsh-turn-notifier/last.json?after=<seq>` 获取新事件，图标通过 `GET /dsh-turn-notifier/icon.png` 获取；两个路由均只接受回环地址的请求。
 
-宿主插件在每轮完成时把 `{会话名, 完成 · 耗时, 摘要}` 写进内存，
-页面脚本通过 `GET /dsh-turn-notifier/last.json?after=<seq>` 取新事件
-（轮询本身就是“页面在线”的心跳），两个路由都只接受回环来源。
+## 行为规则
 
-## 行为细节
-
-- 只在 `reason.kind === 'completed'` 时通知；用户中断、出错、被拦截、达到 max-tokens 都不通知。
-- 默认跳过子代理（`header.origin === 'subagent'`）的会话，避免一次提问弹一屏。
-- 摘要取本轮**最后一段**有内容的 assistant 文本，去掉代码块/markdown 标记、压平空白、
-  按 `summaryChars` 截断并尽量停在句末标点上。
-- 通知失败只写宿主日志，绝不影响会话本身。
+- 仅在 `reason.kind === 'completed'` 时通知。用户中断、执行出错、策略拦截以及达到 max-tokens 的轮次均不通知。
+- 默认跳过子代理会话（`header.origin === 'subagent'`），避免单次提问产生多条通知。
+- 摘要取自本轮最后一段包含文本的 assistant 消息：移除 Markdown 标记、折叠空白，按 `summaryChars` 截断，并尽量在句末标点处结束。
+- 通知投递失败仅记录宿主日志，不影响会话本身。
 
 ## 安装
 
-任选一种（`dsh plugin` 会把依赖写进 profile 的 `package.json`，
-并自动把 `dsh-turn-notifier` 加进 `dsh.profile.bundles`；插件自己的
-`cordis.patch.yml` 负责插入 Loader 条目）。`<profile>` 换成你的 profile 名，
-桌面应用一般是 `desktop`，命令行 web 一般是 `web`：
+`<profile>` 为 profile 名称：桌面应用通常为 `desktop`，命令行的 Web 组合通常为 `web`。
 
 ```sh
-# ① 从 GitHub Release 直接装（推荐）
+# 从 GitHub Release 安装
 dsh plugin --profile <profile> add "https://github.com/king-shao/dsh-turn-notifier/releases/latest/download/dsh-turn-notifier.tgz"
 
-# ② 本地开发：链接源码目录
+# 本地开发：链接源码目录
 dsh plugin --profile <profile> add "link:/path/to/dsh-turn-notifier"
 
-# ③ 本地打包好的 tgz
-dsh plugin --profile <profile> add "/path/to/dsh-turn-notifier-1.0.0.tgz"
+# 本地构建产物
+dsh plugin --profile <profile> add "/path/to/dsh-turn-notifier-<version>.tgz"
 
-# ④ 已发布到 npm 时按包名安装
+# 已发布到 npm 时按包名安装
 dsh plugin --profile <profile> add dsh-turn-notifier
 ```
 
-**改动需要重启 DeepSeek Harness**（desktop profile 下 HMR 关闭）；注入行与路由都在启动时注册。
+`dsh plugin` 会将依赖写入 profile 的 `package.json`，并将 `dsh-turn-notifier` 加入 `dsh.profile.bundles`；插件自身的 `cordis.patch.yml` 负责插入 Loader 条目。
 
-## 打包与发布
-
-```sh
-npm pack          # 产出 dsh-turn-notifier-<version>.tgz
-npm publish       # 需要先把 package.json 的 name 改成你拥有的名字/scope
-```
-
-包内含：`lib/index.js`（宿主插件）、`assets/whale.png`（通知图标）、`cordis.patch.yml`（挂载声明）、
-`icon.svg`（插件管理器图标）、`locale/{zh,en}.json`（`meta.title` / `meta.description`）、
-`README.md`、`LICENSE`。`package.json` 的 `exports` 暴露了 `.`、`./locale/*.json`、`./icon`，
-`dsh.bundle.patch` 指向 patch 文件。
+注入行与路由均在宿主启动时注册，安装或升级后需要重启宿主。
 
 ## 配置
 
-改 `cordis.patch.yml` 的 `config`：
+配置项位于 `cordis.patch.yml` 的 `config` 字段。
 
-| 键 | 默认 | 说明 |
+| 键 | 默认值 | 说明 |
 |---|---|---|
-| `title` | `DeepSeek Harness` | 会话没有标题时的通知标题 |
-| `summaryChars` | `180` | 摘要长度（≥40 生效） |
-| `skipSubagents` | `true` | 跳过子代理会话 |
-| `minSeconds` | `0` | 只提醒耗时 ≥ N 秒的轮次 |
-| `preferClient` | `true` | 页面在线时用页面内通知，避免与原生通知重复 |
-| `sound` | `Glass` | 原生通道提示音；`false` 静音 |
-| `icon` | `auto` | 通知图标：`auto` 用包内鲸鱼图，也可填绝对路径，`false` 关闭（旧名 `contentImage` 仍可用） |
-| `activate` | `com.deepseek.dsh` | 点击原生通知激活的应用 |
-| `backend` | `auto` | `terminal-notifier` / `osascript` / `auto`；Windows、Linux 按平台固定（powershell / notify-send） |
-| `logFile` | `~/.dsh/turn-notifier.log` | 每次投递记一行 JSON；`''` 关闭 |
+| `title` | `DeepSeek Harness` | 会话尚无标题时使用的通知标题 |
+| `summaryChars` | `180` | 摘要长度上限，取值不小于 40 时生效 |
+| `skipSubagents` | `true` | 是否跳过子代理会话 |
+| `minSeconds` | `0` | 仅提醒耗时不低于该值的轮次 |
+| `preferClient` | `true` | 页面在线时使用页面内通知，避免与原生通知重复 |
+| `sound` | `Glass` | 原生通道提示音名称；`false` 为静音 |
+| `icon` | `auto` | 通知图标：`auto` 使用包内图标，也可指定绝对路径，`false` 为不显示；旧名称 `contentImage` 仍可识别 |
+| `activate` | `com.deepseek.dsh` | 点击原生通知时激活的应用 |
+| `backend` | `auto` | `terminal-notifier`、`osascript` 或 `auto`；Windows 与 Linux 固定按平台选择 |
+| `logFile` | `~/.dsh/turn-notifier.log` | 每次投递记录一行 JSON；空字符串表示关闭 |
 
-## 验证
+## 平台支持
+
+插件由纯 JavaScript 实现，不含原生依赖，各平台均可通过 `dsh plugin add` 安装，无需编译或额外运行时。桌面应用与 `dsh web`（浏览器）均支持页面内通知；在浏览器中首次使用时需授权通知权限。
+
+| 平台 | 页面在线 | 页面未运行 | 图标 |
+|---|---|---|---|
+| macOS | 应用自身通知 | `terminal-notifier`（可选）→ `osascript` | `terminal-notifier` 与页面内通知显示图标，`osascript` 不显示 |
+| Windows 10/11 | 应用自身 toast | PowerShell WinRT toast | `appLogoOverride` |
+| Linux | 应用自身通知 | `notify-send` | `-i` 参数 |
+
+macOS 上的 `terminal-notifier` 为可选增强项，提供更完整的排版、点击激活与图标；未安装时回退至 `osascript` 的纯文本横幅。
+
+## 诊断
 
 ```sh
-tail -n 5 ~/.dsh/turn-notifier.log            # 每次该响时多一行（channel 字段说明走哪条通道）
-curl -s 127.0.0.1:50450/dsh-turn-notifier/last.json   # 最近一次完成事件
+tail -n 5 ~/.dsh/turn-notifier.log                  # 每次投递记录一行，channel 字段标明通道
+curl -s http://<host>:<port>/dsh-turn-notifier/last.json   # 最近一次完成事件
 ```
 
 ## 卸载
 
 ```sh
-dsh plugin --profile desktop remove dsh-turn-notifier
+dsh plugin --profile <profile> remove dsh-turn-notifier
 ```
 
-再从 `~/.dsh/profiles/desktop/package.json` 的 `dsh.profile.bundles` 删掉
-`dsh-turn-notifier`，重启应用。
+随后从 profile 的 `package.json` 中移除 `dsh.profile.bundles` 内的 `dsh-turn-notifier`，并重启宿主。
 
-## 平台支持
+## 打包与发布
 
-插件本身是纯 JS，`dsh plugin add` 在任何平台都一样安装，不需要编译或额外运行时；
-通知走哪条通道由运行环境自动选择。桌面应用和 `dsh web`（浏览器）都支持页面内通知，
-浏览器首次会弹一次通知授权：
+```sh
+npm pack       # 生成 dsh-turn-notifier-<version>.tgz
+npm publish    # 发布前需将 package.json 的 name 改为自有名称或 scope
+```
 
-| 平台 | 页面开着（client） | 页面关闭（native） | 图标 |
-|---|---|---|---|
-| macOS | 应用自己的通知 | `terminal-notifier`（装了才有）→ `osascript` | 前两者带鲸鱼图，`osascript` 无图标 |
-| Windows 10/11 | 应用自己的 toast | PowerShell WinRT toast | `appLogoOverride` 鲸鱼图标 |
-| Linux | 应用自己的通知 | `notify-send` | `-i` 鲸鱼图标 |
+包内含：`lib/index.js`（宿主插件）、`assets/whale.png`（通知图标）、`cordis.patch.yml`（挂载声明）、`icon.svg`（插件管理器图标）、`locale/{zh,en}.json`（`meta.title` 与 `meta.description`）、`README.md`、`LICENSE`。
 
-`terminal-notifier` 是 macOS 上的**可选**增强（更好的排版、点击激活、图标）；
-没装也能工作，只是退回 `osascript` 的朴素横幅。
+`package.json` 的 `exports` 暴露 `.`、`./package.json`、`./locale/*.json` 与 `./icon`；`dsh.bundle.patch` 指向 patch 文件。
 
 ## 限制
 
-- 原生通道（页面没开时）依赖 `terminal-notifier` 的通知权限；本机该权限目前是关闭的，
-  表现为通知不显示（插件会自动退回 `osascript`，但 Script Editor 的通知权限同样未登记）。
-  需要时到「系统设置 → 通知」放行对应工具。日常开着页面用 `client` 通道不受影响。
-- Windows 原生通道借用 Windows PowerShell 的 AUMID 发 toast，所以通知中心里显示的
-  应用名是「Windows PowerShell」而不是 DeepSeek Harness；需要 Windows 10/11 且系统里有
-  `powershell.exe`（没有时尝试 `pwsh.exe`）。页面开着时走 `client` 通道，显示的就是应用本身。
-- Windows 上不支持自定义提示音名称，`sound: false` 会转为静音 toast，其余值用系统默认提示音。
-- 页面轮询间隔 2s，通知最多延迟约 2s。
+- 原生通道依赖平台的通知服务与授权状态。未授予通知权限时，通知不会展示，仅记录日志；页面在线时不受此限制。
+- Windows 原生通道借用 Windows PowerShell 的 AUMID 发送 toast，通知中心显示的应用名称为“Windows PowerShell”，而非 DeepSeek Harness。该通道要求 Windows 10/11 且存在 `powershell.exe`，缺失时尝试 `pwsh.exe`。
+- Windows 不支持自定义提示音名称：`sound: false` 生成静音 toast，其他取值使用系统默认提示音。
+- 页面轮询间隔为 2 秒，通知最多延迟约 2 秒。
+- 宿主进程未运行时不会产生通知。
+
+## 许可
+
+MIT。通知图标取自 DeepSeek Harness 应用图标，属于 DeepSeek 品牌素材；再分发或公开发布前请自行确认授权范围。
